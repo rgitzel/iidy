@@ -15,54 +15,74 @@ BUILD_ARTIFACTS = dist/iidy-macos dist/iidy-linux
 RELEASE_PACKAGES = dist/iidy-macos-amd64.zip dist/iidy-linux-amd64.zip
 
 DOCKER_BUILD_ARGS = --force-rm
+
 ##########################################################################################
 ## Top level targets. Our public api. See Plumbing section for the actual work
-.PHONY : prereqs deps build docker_build test clean fullclean package prepare_release help
 
+.PHONY: help
 help: ## Display this message
 	@grep -E '^[a-zA-Z_-]+ *:.*?## .*$$' $(MAKEFILE_LIST) \
 	| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 .DEFAULT_GOAL := help
 
-prereqs : $(PREREQS_STATEFILE)    ## Check for system level prerequisites
+.PHONY: prereqs
+prereqs: $(PREREQS_STATEFILE)     ## Check for system level prerequisites
 
-deps : $(DEPS_STATEFILE)          ## Install library deps (e.g. npm install)
+.PHONY: deps
+deps: $(DEPS_STATEFILE)           ## Install library deps (e.g. npm install)
 
-build : $(BUILD_ARTIFACTS)        ## Build static binaries
+.PHONY: build
+build: $(BUILD_ARTIFACTS)         ## Build static binaries
 
-docker_build : $(DOCKER_STATEFILE) ## Build and test docker images
+.PHONY: docker_build
+docker_build: $(DOCKER_STATEFILE) ## Build and test docker images
 
-test : $(TESTS_STATEFILE)	  ## Run functional tests
+.PHONY: test
+test: $(TESTS_STATEFILE)          ## Run functional tests
 
-clean :			          ## Clean the dist/ directory (binaries, etc.)
+.PHONY: clean
+clean:                            ## Clean the dist/ directory (binaries, etc.)
 	rm -rf dist/* lib/*
 
-fullclean : clean ## Clean dist, node_modules and .make (make state tracking)
+.PHONY: fullclean
+fullclean : clean                 ## Clean dist, node_modules and .make (make state tracking)
 	rm -rf .make node_modules
 
+.PHONY: package
 package: SHELL:=/bin/bash
 package: $(RELEASE_PACKAGES)
 	@git diff --quiet --ignore-submodules HEAD || echo -e '\x1b[0;31mWARNING: git workding dir not clean\x1b[0m'
 	@echo
 	@ls -alh dist/*zip
 	@shasum -p -a 256 dist/* || true
+
+.PHONY: release
+release: check_working_dir_is_clean clean deps build test bump_version_and_tag package
 	@echo
 	@echo Changelog:
 	@ { \
-	  IFS=":" read -r first second; \
-	  echo git log $${first}...$${second}; echo ; \
-	  git log $${first}...$${second} \
-	  --pretty=format:'<li> <a href="http://github.com/unbounce/iidy/commit/%H">view commit</a> %s</li> '; \
-	  } < <(git tag | tail -n2 | paste -sd':' -)
-	@echo
+		IFS=":" read -r first second; \
+		echo git log $${first}...$${second}; echo ; \
+		git --no-pager log $${first}...$${second} \
+			--grep="Merge pull request #" --format="- %b %s" \
+			| sed 's/ from [^ ]\+\/[^ ]\+$///' \
+			| sed 's/Merge pull request #\([0-9]+\)/\(#\1\)/'; \
+		} < <(git tag | tail -n2 | paste -sd':' -)
 	@echo open dist/
-
-prepare_release : check_working_dir_is_clean test package  ## Prepare a new public release. Requires clean git workdir
 	@echo update https://github.com/unbounce/iidy/releases
 	@echo and remember to update https://github.com/unbounce/homebrew-taps/blob/master/iidy.rb
 
-# TODO script version bump & upload of the binaries
-#release: check_working_dir_is_clean clean deps build test
+.PHONY: bump_version_and_tag
+bump_version_and_tag:
+	@read -p 'What version would you like to release (eg. 1.0.0)? ' version; \
+	echo "Setting version $$version..."; \
+	npm set version "$$version"; \
+	npm install; \
+	echo "Committing, tagging, and pushing v$$version..."; \
+	git add package.json package-lock.json; \
+	git commit -m "v$$version"; \
+	git tag -a "v$$version" -m "v$$version"; \
+	git push origin "v$$version";
 
 ################################################################################
 ## Plumbing
@@ -90,9 +110,9 @@ $(BUILD_ARTIFACTS) : $(DEPS_STATEFILE) $(SRC_FILES)
 $(RELEASE_PACKAGES) : $(BUILD_ARTIFACTS)
 	cd dist && \
 	for OS in linux macos; do \
-	  cp iidy-$$OS iidy; \
-	  zip iidy-$${OS}-amd64.zip iidy;\
-	  shasum -p -a 256 iidy-$${OS}-amd64.zip; \
+		cp iidy-$$OS iidy; \
+		zip iidy-$${OS}-amd64.zip iidy;\
+		shasum -p -a 256 iidy-$${OS}-amd64.zip; \
 	done
 	rm -f dist/iidy
 

@@ -623,7 +623,8 @@ before submitting a PR.
 ## License
 MIT.
 
-## Changelog
+# Changelog
+
 * [v1.6.1](https://github.com/unbounce/iidy/releases/tag/v1.6.1)
   - fix bug with `iidy param` commands (#50)
 
@@ -683,17 +684,12 @@ MIT.
 * [v1.0.0](https://github.com/unbounce/iidy/releases/tag/v1.0.0)
   - Initial Release -- August 1, 2017
 
-
 ## Release
 
-- Update `version` in `package.json`
-- Run `npm install`
-- Run `git add package.json package-lock.json`
-- Run `git commit -m 'v1.0.0'` with correct version number
-- Run `git tag -a v1.0.0 -m 'v1.0.0'` with correct version number
-- Run `git push origin v1.0.0` with correct version number
-- Run `make release-prepare`
+- Run `make release`
 - Create [GitHub release](https://github.com/unbounce/iidy/releases)
+  - Upload zip packages
+  - Copy changelog from `make release` output
 - Update [homebrew forumula](https://github.com/unbounce/homebrew-taps/blob/master/iidy.rb)
 
 ## Roadmap
